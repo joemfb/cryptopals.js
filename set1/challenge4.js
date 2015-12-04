@@ -3,51 +3,57 @@ var fs = require('fs')
 var input = fs.readFileSync(__dirname + '/inputs/4.txt', 'utf-8')
 
 var alphabet = 'abcdefghijklmnopqrstuvwxyz'
-var alphabetArray = alphabet.split('').concat(alphabet.toUpperCase().split(''))
+var alphabetBuffer = new Buffer(alphabet.concat(alphabet.toUpperCase()))
 
 function score(input) {
-  return input.split('')
-  .map(function(c) {
-    if (alphabetArray.indexOf(c) > -1 || c === ' ') {
-      return 1
-    } else {
-      return 0
-    }
-  })
-  .reduce(function(a, b) {
-    return a + b
-  })
-}
+  var score = 0
 
-function xor(input, key) {
-  var results = []
   for (var i = 0; i < input.length; i++) {
-    results.push(input[i] ^ key)
+    if (alphabetBuffer.indexOf(input[i]) > -1 || input[i] === 32) {
+      score++
+    }
   }
 
-  return new Buffer(results).toString()
+  return score
 }
 
-var candidates = input.split('\n')
-.map(function(ciphertext) {
-  var b = new Buffer(ciphertext, 'hex')
+function xor(payload, key) {
+  var results = []
+  var index
+
+  for (var i = 0; i < payload.length; i++) {
+    // index = i % key.length
+    results.push(payload[i] ^ key[0])
+  }
+
+  return new Buffer(results)
+}
+
+function breakSingleKeyXor(ciphertext) {
   var candidates = []
   var payload
 
   for (var i = 0; i < 200; i++) {
-    payload = xor(b, i)
+    payload = xor(ciphertext, [i])
     candidates.push({
       payload: payload,
+      string: payload.toString(),
       score: score(payload)
     })
   }
 
   return candidates.sort(function(a, b) {
     return b.score - a.score
-  })[0]
+  })
+}
+
+var candidates = input.split('\n')
+.map(function(ciphertext) {
+  var b = new Buffer(ciphertext, 'hex')
+  return breakSingleKeyXor(b)[0]
 })
 .sort(function(a, b) {
   return b.score - a.score
 })
 
-console.log( JSON.stringify(candidates[0], null, 2) )
+console.log(candidates[0])
