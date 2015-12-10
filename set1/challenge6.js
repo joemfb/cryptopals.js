@@ -1,67 +1,19 @@
+/**
+ * Break repeating-key XOR
+ *
+ * http://cryptopals.com/sets/1/challenges/6/
+ */
+
 var fs = require('fs')
+var utils = require('../lib/utils.js')
 
 var input = fs.readFileSync(__dirname + '/inputs/6.txt', 'utf-8')
 
-var alphabet = 'abcdefghijklmnopqrstuvwxyz'
- var alphabetBuffer = new Buffer(alphabet.concat(alphabet.toUpperCase()))
-
-// n-character xor
-function xor(payload, key) {
-  var results = []
-  var index
-
-  for (var i = 0; i < payload.length; i++) {
-    index = i % key.length
-    results.push(payload[i] ^ key[index])
-  }
-
-  return new Buffer(results)
-}
-
-function xorStrings(ciphertext, key) {
-  return xor(new Buffer(ciphertext), new Buffer(key))
-}
-
-function score(input) {
-  var score = 0
-
-  for (var i = 0; i < input.length; i++) {
-    if (alphabetBuffer.indexOf(input[i]) > -1 || input[i] === 32) {
-      score++
-    }
-  }
-
-  return score
-}
-
-function breakSingleKeyXor(ciphertext) {
-  var candidates = []
-  var payload
-
-  for (var i = 0; i < 200; i++) {
-    payload = xor(ciphertext, [i])
-    candidates.push({
-      ciphertext: ciphertext.toString('hex'),
-      keyChar: i,
-      key: String.fromCharCode(i),
-      key: i,
-      payload: payload,
-      string: payload.toString(),
-      score: score(payload)
-    })
-  }
-
-  return candidates.sort(function(a, b) {
-    return b.score - a.score
-  })
-}
-
+// count the set bits of a number (the '1's in base-2 string)
 function popCount(x) {
   var count = 0
   while (x > 0) {
-    if ((x & 1) === 1) {
-      count++
-    }
+    count += x & 1
     x >>= 1
   }
   return count
@@ -79,60 +31,19 @@ function bufferPopCount(b) {
 }
 
 function hammingsDistance(x, y) {
-  return bufferPopCount(xorStrings(x, y))
+  return bufferPopCount(utils.xor(x, y))
 }
 
-function getSlices(input, size, n) {
-  var results = []
-  for (var i = 0; i < n; i++) {
-    results.push(
-      input.slice(size * i, size * (i + 1))
-    )
-  }
-  return results
-}
-
-function testKeySize(input, size) {
-  var distances = []
-
-  getSlices(input, size, 10)
-  .reduce(function(a, b) {
-    distances.push(bufferPopCount(xor(a, b)))
-    return b
-  })
-
-  var distance = distances
-  .reduce(function(a, b) {
-    return a + b
-  }) / distances.length
-
-  return {
-    size: size,
-    distance: distance,
-    normalize: distance / size
-  }
-}
-
-function findKeySizes(input) {
-  var results = []
-
-  for (var i = 2; i <= 40; i++) {
-    results.push(testKeySize(input, i))
-  }
-
-  return results
-  .sort(function(a, b) {
-    return a.normalize - b.normalize
-  })
-  .slice(0, 3)
-}
-
-function getBlocks(input, size) {
-  var max = Math.ceil(input.length / size)
+// subsequently moved to utils
+function getBlocks(input, size, n) {
   var blocks = []
   var index
 
-  for (var i = 0; i < max; i++) {
+  if (n === undefined) {
+    n = Math.ceil(input.length / size)
+  }
+
+  for (var i = 0; i < n; i++) {
     index = i * size
     blocks.push(input.slice(index, index + size))
   }
@@ -140,6 +51,34 @@ function getBlocks(input, size) {
   return blocks
 }
 
+// returns the normalized edit distance between blocks of `size`
+function testKeySize(input, size, nBlocks) {
+  var blocks = getBlocks(input, size, nBlocks)
+  var distances = utils.mapPairs(blocks, hammingsDistance)
+
+  return utils.avg(distances) / size
+}
+
+// returns the 3 most likely key sizes for input
+function findKeySizes(input) {
+  var nBlocks = 10 // number of blocks to compare
+  var results = []
+
+  for (var i = 2; i <= 40; i++) {
+    results.push({
+      size: i,
+      distance: testKeySize(input, i, nBlocks)
+    })
+  }
+
+  return results
+  .sort(function(a, b) {
+    return a.distance - b.distance
+  })
+  .slice(0, 3)
+}
+
+// transposes blocks into a block for each index (a la lodash.zip)
 function transposeBlocks(blocks) {
   var max = blocks[0].length
   var transposed = []
@@ -156,33 +95,26 @@ function transposeBlocks(blocks) {
   return transposed
 }
 
-function breakXor(input, keySizes) {
-  return keySizes.map(function(keySize) {
-    var blocks = getBlocks(input, keySize.size)
-    var transposedBlocks = transposeBlocks(blocks)
+function breakXor(input, keySize) {
+  var blocks = getBlocks(input, keySize)
+  var transposedBlocks = transposeBlocks(blocks)
 
-    var key = transposedBlocks.map(function(block) {
-      return breakSingleKeyXor(block)[0].key
-    })
+  var keyBytes = transposedBlocks.map(utils.breakSingleByteXor)
+  var key = new Buffer(keyBytes)
 
-    var keyBuffer = new Buffer(key)
-
-    return {
-      keySize: keySize,
-      key: key,
-      keyString: keyBuffer.toString(),
-      decrypted: xor(input, keyBuffer).toString()
-    }
-  })
+  return {
+    keySize: keySize,
+    key: key,
+    plaintext: utils.xor(input, key)
+  }
 }
 
-// console.log( hammingsDistance('this is a test', 'wokka wokka!!!') === 37 )
+// console.log( hammingsDistance(new Buffer('this is a test'), new Buffer('wokka wokka!!!')) === 37 )
 
 var b = new Buffer(input, 'base64')
 var keySizes = findKeySizes(b)
+var decrypted = breakXor(b, keySizes[0].size)
 
-var decrypted = breakXor(b, keySizes)[0]
-
-console.log('key: ' + decrypted.keyString)
+console.log('key: ' + decrypted.key.toString())
 console.log()
-console.log(decrypted.decrypted)
+console.log(decrypted.plaintext.toString())

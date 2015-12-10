@@ -1,4 +1,11 @@
+/**
+ * Detect AES in ECB mode
+ *
+ * http://cryptopals.com/sets/1/challenges/8/
+ */
+
 var fs = require('fs')
+var utils = require('../lib/utils.js')
 
 var input = fs.readFileSync(__dirname + '/inputs/8.txt', 'utf-8')
 
@@ -7,21 +14,8 @@ var buffers = input.split('\n')
   return new Buffer(line, 'hex')
 })
 
-function getSlices(input, size, n) {
-  var results = []
-  for (var i = 0; i < n; i++) {
-    if (input[size * i] === undefined) {
-      break
-    }
-    results.push(
-      input.slice(size * i, size * (i + 1))
-    )
-  }
-  return results
-}
-
 function checkDuplicateBlocks(buffer, size) {
-  var blocks = getSlices(buffer, size, input.length)
+  var blocks = utils.getBlocks(buffer, size)
 
   for (var i = 0; i < blocks.length; i++) {
     index = buffer.indexOf(blocks[i])
@@ -31,7 +25,6 @@ function checkDuplicateBlocks(buffer, size) {
   }
   return { hasDuplicate: false };
 }
-
 
 var size = 16
 
@@ -48,4 +41,3 @@ buffers.forEach(function(buffer, i) {
     // TODO: log positions
   }
 })
-

@@ -1,3 +1,11 @@
+/**
+ * Detect single-character XOR
+ *
+ * Detection and bruteforce decryption of XOR'd ciphertext
+ *
+ * http://cryptopals.com/sets/1/challenges/4/
+ */
+
 var fs = require('fs')
 
 var input = fs.readFileSync(__dirname + '/inputs/4.txt', 'utf-8')
@@ -5,6 +13,7 @@ var input = fs.readFileSync(__dirname + '/inputs/4.txt', 'utf-8')
 var alphabet = 'abcdefghijklmnopqrstuvwxyz'
 var alphabetBuffer = new Buffer(alphabet.concat(alphabet.toUpperCase()))
 
+// subsequently adapted and moved to utils
 function score(input) {
   var score = 0
 
@@ -17,18 +26,20 @@ function score(input) {
   return score
 }
 
+// this computes single-charactor xor
+// see challenge5 for the n-character version
 function xor(payload, key) {
   var results = []
   var index
 
   for (var i = 0; i < payload.length; i++) {
-    // index = i % key.length
     results.push(payload[i] ^ key[0])
   }
 
   return new Buffer(results)
 }
 
+// subsequently adapted and moved to utils
 function breakSingleKeyXor(ciphertext) {
   var candidates = []
   var payload

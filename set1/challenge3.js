@@ -1,8 +1,17 @@
+/**
+ * Single-byte XOR cipher
+ *
+ * Bruteforce decryption of XOR'd ciphertext
+ *
+ * http://cryptopals.com/sets/1/challenges/3/
+ */
+
 var input = '1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736'
 
 var alphabet = 'abcdefghijklmnopqrstuvwxyz'
 var keys = alphabet.split('').concat(alphabet.toUpperCase().split(''))
 
+// scores text based on the presence of alphabetical chars or spaces
 function score(input) {
   return input.split('')
   .map(function(c) {
@@ -19,6 +28,9 @@ function score(input) {
 
 var b = new Buffer(input, 'hex')
 
+// computes single-charactor xor on the global buffer `b`
+// this cheats, key s/b a buffer
+// improved versions in challenges 4 and 5
 function xor(c) {
   var key = c.charCodeAt()
   var results = []

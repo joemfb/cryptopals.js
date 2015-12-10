@@ -2,4 +2,5 @@
 
 JS solutions for the Matasano Crypto Challenges at http://cryptopals.com
 
-*In Progress* ...
+- [✓] Set 1 - Basics
+- [ ] Set 2 - Block Crypto *in progress*

@@ -1,3 +1,9 @@
+/**
+ * AES in ECB mode
+ *
+ * http://cryptopals.com/sets/1/challenges/7/
+ */
+
 var fs = require('fs')
 var crypto = require('crypto')
 
@@ -7,6 +13,7 @@ var b = new Buffer(input, 'base64')
 var key = new Buffer('YELLOW SUBMARINE')
 var iv = ''
 
+// ecb doesn't use an iv, but node/crypto derives a "password" from `key` without one
 var decipher = crypto.createDecipheriv('aes-128-ecb', key, iv)
 var plaintext = Buffer.concat([decipher.update(b), decipher.final()])
 
