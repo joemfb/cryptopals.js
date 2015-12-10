@@ -154,13 +154,7 @@ function detectMode(encryptor) {
   var oracle = encryptor(new Buffer(magicInput))
   var guess = guessMode(oracle.ciphertext)
 
-  // console.log('mode: ' + oracle.mode)
-  // console.log('guess: ' + guess)
-
-  return {
-    mode: oracle.mode,
-    correct: oracle.mode === guess
-  }
+  return { mode: oracle.mode, correct: oracle.mode === guess }
 }
 
 function test(guesses) {
