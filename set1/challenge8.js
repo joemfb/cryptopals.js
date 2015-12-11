@@ -14,6 +14,7 @@ var buffers = input.split('\n')
   return new Buffer(line, 'hex')
 })
 
+// subsequently adapted and moved to utils
 function checkDuplicateBlocks(buffer, size) {
   var blocks = utils.getBlocks(buffer, size)
 

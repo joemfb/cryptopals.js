@@ -1,61 +1,21 @@
+/**
+ * Byte-at-a-time ECB decryption (Simple)
+ *
+ * http://cryptopals.com/sets/2/challenges/12/
+ */
+
 var fs = require('fs')
 var crypto = require('crypto')
+var utils = require('../lib/utils.js')
+var cryptoLib = require('../lib/crypto.js')
 
 var input = fs.readFileSync(__dirname + '/inputs/12.txt', 'utf-8').replace(/\s/g, '')
 var inputBuffer = new Buffer(input, 'base64')
 var randomKey
 
-function pad(block, len) {
-  if (len <= block.length) return block
-
-  var padding = new Buffer(
-    new Array(len - block.length).fill(4)
-  )
-  return Buffer.concat([block, padding])
-}
-
-function encryptECB(plaintext, key) {
-  var iv = ''
-  var cipher = crypto.createCipheriv('aes-128-ecb', key, iv)
-  cipher.setAutoPadding(false)
-
-  var mod = plaintext.length % key.length
-  var padLength
-
-  if (mod) {
-    padLength = plaintext.length + key.length - mod
-    plaintext = pad(plaintext, padLength)
-  }
-
-  return Buffer.concat([cipher.update(plaintext), cipher.final()])
-}
-
-function getBlocks(input, size) {
-  var max = Math.ceil(input.length / size)
-  var results = []
-  for (var i = 0; i < max; i++) {
-    results.push(
-      input.slice(size * i, size * (i + 1))
-    )
-  }
-  return results
-}
-
-function checkDuplicateBlocks(buffer, size) {
-  var blocks = getBlocks(buffer, size, buffer.length)
-
-  for (var i = 0; i < blocks.length; i++) {
-    index = buffer.indexOf(blocks[i])
-    if (index > -1 && index !== (i * size)) {
-      return { hasDuplicate: true, block: blocks[i] };
-    }
-  }
-  return { hasDuplicate: false };
-}
-
 function guessMode(ciphertext) {
   for (var i = 5; i < 11; i++) {
-    if (checkDuplicateBlocks(ciphertext.slice(i), 16).hasDuplicate) {
+    if (utils.hasDuplicateBlocks(ciphertext.slice(i), 16)) {
       return 'ecb'
     }
   }
@@ -74,7 +34,7 @@ function encryptECBUnknownKey(plaintext) {
     randomKey = crypto.randomBytes(16)
   }
 
-  return encryptECB(Buffer.concat([plaintext, inputBuffer]), randomKey)
+  return cryptoLib.encryptECB(Buffer.concat([plaintext, inputBuffer]), randomKey)
 }
 
 function duplicateBlockSize(ciphertext) {
@@ -128,7 +88,9 @@ function bufferEqual(a, b) {
 }
 
 function bruteForceByte(blockSize, finalLength, guessedBytes) {
-  finalLength = finalLength || encryptECBUnknownKey(new Buffer(0)).length
+  // finalLength = finalLength || encryptECBUnknownKey(new Buffer(0)).length
+  // use inputBuffer.length to ignore padding
+  finalLength = finalLength || inputBuffer.length
   guessedBytes = guessedBytes || []
 
   var guessedBuffer = new Buffer(guessedBytes)
