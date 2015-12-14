@@ -75,18 +75,6 @@ function detectECB() {
   return detectMode(encryptECBUnknownKey) === 'ecb'
 }
 
-function bufferEqual(a, b) {
-  if (a.length !== b.length) return false
-
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) {
-      return false
-    }
-  }
-
-  return true
-}
-
 function bruteForceByte(blockSize, finalLength, guessedBytes) {
   // finalLength = finalLength || encryptECBUnknownKey(new Buffer(0)).length
   // use inputBuffer.length to ignore padding
@@ -116,7 +104,7 @@ function bruteForceByte(blockSize, finalLength, guessedBytes) {
     plaintext = Buffer.concat([padding, guessedBuffer, new Buffer([i])])
     permutation = encryptECBUnknownKey(plaintext).slice(target.from, target.to)
 
-    if (bufferEqual(permutation, paddedBlock)) {
+    if (permutation.equals(paddedBlock)) {
       guessedBytes.push(i)
       found = true
       break
@@ -145,5 +133,5 @@ var plaintext = breakECB()
 console.log(plaintext.toString())
 
 // strip padding
-var matches = bufferEqual(plaintext.slice(0, inputBuffer.length), inputBuffer)
+var matches = plaintext.slice(0, inputBuffer.length).equals(inputBuffer)
 console.log('plaintext matches input: ' + matches)
