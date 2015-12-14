@@ -68,6 +68,7 @@ function decryptProfile(ciphertext) {
 }
 
 // get the offsets for the profile strings surrounding the email address
+// Note: included only to demonstrate rationale; always returns { before: 6, after: 13 }
 function getProfileOffsets() {
   var marker = '!'
   var sample = profileFor(marker)
@@ -81,28 +82,42 @@ function getProfileOffsets() {
   return { before: before.length, after: after.length }
 }
 
-function createAdminProfile() {
-  // TODO: try to detect this ...
-  var blockSize = 16
+// get a ciphertext block containing only the desired role and padding
+function getRoleBlock(role, blockSize, offsets) {
+  var roleBlock = utils.pad(new Buffer(role), blockSize)
 
-  var targetRole = 'admin'
-  var targetBlock = utils.pad(new Buffer(targetRole), blockSize)
-
-  var offsets = getProfileOffsets()
   // Note: this would need to be modular if either offset were > blockSize
   var before = utils.pad(new Buffer(0), blockSize - offsets.before)
   var after = utils.pad(new Buffer(0), blockSize - offsets.after)
 
-  var input = Buffer.concat([before, targetBlock, after])
+  var input = Buffer.concat([before, roleBlock, after])
   var ciphertext = encryptProfile(profileFor(input))
 
   var blocks = utils.getBlocks(ciphertext, blockSize)
-
   var targetBlock = Math.ceil(offsets.before / blockSize) - 1
-  var modifiedBlocks = blocks.slice(0, blocks.length - 1).concat(blocks[targetBlock])
-  var modifiedCiphertext = Buffer.concat(modifiedBlocks)
 
-  return decryptProfile(modifiedCiphertext)
+  return blocks[targetBlock]
 }
 
-console.log(createAdminProfile())
+function createAdminProfile(email) {
+  // TODO: try to detect this ...
+  var blockSize = 16
+  var targetRole = 'admin'
+
+  var offsets = getProfileOffsets()
+  var roleBlock = getRoleBlock(targetRole, blockSize, offsets)
+
+  // pad the email so that the role will be isolated on the last block
+  var padEmail = blockSize - (offsets.before + offsets.after + email.length) % blockSize
+  var padding = utils.makeBuffer(padEmail, email.charCodeAt(0))
+  var paddedEmail = Buffer.concat([padding, new Buffer(email)])
+
+  var ciphertext = encryptProfile(profileFor(paddedEmail))
+  var blocks = utils.getBlocks(ciphertext, blockSize)
+
+  blocks[blocks.length - 1] = roleBlock
+
+  return decryptProfile(Buffer.concat(blocks))
+}
+
+console.log(createAdminProfile('bill@microsoft.com'))
