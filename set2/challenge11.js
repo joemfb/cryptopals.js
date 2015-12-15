@@ -42,6 +42,7 @@ function createEncryptor() {
 }
 
 function guessMode(ciphertext) {
+  // TODO: document range
   for (var i = 5; i < 11; i++) {
     if (utils.hasDuplicateBlocks(ciphertext.slice(i), 16)) {
       return 'ecb'
