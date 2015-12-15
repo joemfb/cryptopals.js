@@ -8,6 +8,7 @@ var crypto = require('crypto')
 var utils = require('../lib/utils.js')
 var cryptoLib = require('../lib/crypto.js')
 
+// subsequently moved to utils
 function rand(min, max) {
   if (max === undefined) {
     max = min
