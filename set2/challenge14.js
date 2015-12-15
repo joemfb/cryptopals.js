@@ -24,59 +24,22 @@ function createEncryptor(target) {
   }
 }
 
-function indexOfDuplicateBlock(buffer, size) {
-  var blocks = utils.getBlocks(buffer, size)
-
-  for (var i = 0; i < blocks.length; i++) {
-    if (buffer.indexOf(blocks[i], (i * size) + size) > -1) {
-      return i
-    }
-  }
-  return -1
-}
-
-// from 12
-function sizeOfDuplicateBlock(buffer) {
-  // blockSize assumed to be between 8-64; get the largest
-  for (var i = 64; i >= 8; i--) {
-    if (indexOfDuplicateBlock(buffer, i) > -1) {
-      return i
-    }
-  }
-  return -1
-}
-
-// from 12
-function getBlockSize(encryptor) {
-  var ciphertext, size
-
-  // i = 3 * blockSize, to ensure at least 2 whole blocks are duplicated
-  for (var i = 24; i <= 192; i++) {
-    ciphertext = encryptor(utils.makeBuffer(i, 'A'.charCodeAt(0)))
-    size = sizeOfDuplicateBlock(ciphertext)
-
-    if (size > -1) {
-      return size
-    }
-  }
-
-  throw new Error('couldn\'t find block size')
-}
-
+// get the lenth of the random prefix for `encryptor`
 function getPrefixLength(encryptor, blockSize) {
-  var paddingLength = 3 * blockSize
-  var plaintext = utils.makeBuffer(paddingLength, 'A'.charCodeAt(0))
-  var ciphertext = encryptor(plaintext)
-  var index = indexOfDuplicateBlock(ciphertext, blockSize)
-  var lastIndex
+  var paddingLength = 3 * blockSize + 1
+  var index, lastIndex, plaintext, ciphertext
 
   // shrink the padding size until we don't have duplicate blocks
-  while (index > -1) {
+  do {
     lastIndex = index
     paddingLength--
     plaintext = utils.makeBuffer(paddingLength, 'A'.charCodeAt(0))
     ciphertext = encryptor(plaintext)
-    index = indexOfDuplicateBlock(ciphertext, blockSize)
+    index = utils.indexOfDuplicateBlock(ciphertext, blockSize)
+  } while (index > -1)
+
+  if (!lastIndex) {
+    throw new Error('couldn\'t find duplicate blocks')
   }
 
   // the smallist padding length that resulted in duplicate blocks
@@ -86,64 +49,58 @@ function getPrefixLength(encryptor, blockSize) {
   return (lastIndex * blockSize) - minPadding
 }
 
-function bruteForceByte(encryptor, blockSize, start, finalLength, guessedBytes) {
-  // TODO: find some other way to figure out that we're done
-  // finalLength = finalLength || encryptor(new Buffer(0)).length
-  // for now, use inputBuffer.length to ignore padding
-  finalLength = finalLength || inputBuffer.length
+// find the secret bytes from `encryptor`
+// adapted from set2/challenge12 (to account for random-length random prefix)
+function bruteForceECB(encryptor, blockSize, start, guessedBytes) {
   guessedBytes = guessedBytes || []
 
   var guessedBuffer = new Buffer(guessedBytes)
-
-  if (finalLength === guessedBytes.length) {
-    return guessedBuffer
+  var targetByte = guessedBytes.length
+  var targetPrefix = Math.ceil(start / blockSize) * blockSize
+  var targetBlock = Math.floor(targetByte / blockSize) * blockSize
+  var target = {
+    from: targetPrefix + targetBlock,
+    to: targetPrefix + targetBlock + blockSize
   }
 
   var paddingPrefix = blockSize - (start % blockSize || blockSize)
-  var paddingLength = paddingPrefix + blockSize - (guessedBytes.length % blockSize) - 1
+  var paddingLength = blockSize - (targetByte % blockSize) - 1
+  var padding = utils.makeBuffer(paddingPrefix + paddingLength, 'A'.charCodeAt(0))
+  var guessedByte = cryptoLib.bruteForceECBByte(encryptor, padding, guessedBuffer, target)
 
-  var targetPrefix = Math.ceil(start / blockSize) * blockSize
-  var targetBlock = targetPrefix + guessedBytes.length - (guessedBytes.length % blockSize)
-  var target = {
-    from: targetBlock,
-    to: targetBlock + blockSize
-  }
-
-  var padding = utils.makeBuffer(paddingLength, 'A'.charCodeAt(0))
-  var paddedBlock = encryptor(padding).slice(target.from, target.to)
-
-  var plaintext, permutation
-  var found = false
-
-  for (var i = 0; i < 256; i++) {
-    plaintext = Buffer.concat([padding, guessedBuffer, new Buffer([i])])
-    permutation = encryptor(plaintext).slice(target.from, target.to)
-
-    if (permutation.equals(paddedBlock)) {
-      guessedBytes.push(i)
-      found = true
-      break
+  if (guessedByte === -1) {
+    // if we have less than a block left, assume it's padding
+    // Note: the "right" thing would be to validate and strip padding
+    if (encryptor(new Buffer(0)).length - targetByte - start < blockSize) {
+      return guessedBuffer
     }
-  }
 
-  if (!found) {
     console.log(guessedBuffer)
-    throw new Error('couldn\'t guess byte: ' + (guessedBytes.length + 1))
+    console.log(guessedBuffer.toString())
+    throw new Error('couldn\'t guess byte: ' + targetByte)
   }
 
-  return bruteForceByte(encryptor, blockSize, start, finalLength, guessedBytes)
+  guessedBytes.push(guessedByte)
+
+  return bruteForceECB(encryptor, blockSize, start, guessedBytes)
+}
+
+function breakECB(encryptor) {
+  var blockSize = cryptoLib.getECBBlockSize(encryptor)
+  var prefixLength = getPrefixLength(encryptor, blockSize)
+  var plaintext = bruteForceECB(encryptor, blockSize, prefixLength)
+
+  return { blockSize: blockSize, plaintext: plaintext }
 }
 
 var encryptor = createEncryptor(inputBuffer)
-var blockSize = getBlockSize(encryptor)
-var prefixLength = getPrefixLength(encryptor, blockSize)
-var plaintext = bruteForceByte(encryptor, blockSize, prefixLength)
+var result = breakECB(encryptor)
 
-console.log('block size: ' + blockSize)
+console.log('block size: ' + result.blockSize)
 console.log()
 console.log('brute forced plaintext:\n')
-console.log(plaintext.toString())
+console.log(result.plaintext.toString())
 
 // strip padding
-var matches = plaintext.slice(0, inputBuffer.length).equals(inputBuffer)
+var matches = result.plaintext.slice(0, inputBuffer.length).equals(inputBuffer)
 console.log('plaintext matches input: ' + matches)
